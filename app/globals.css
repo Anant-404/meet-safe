@@ -1,26 +1,158 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #f7f8fb;
+  --foreground: #0b1220;
+  --card: #ffffff;
+  --muted: #6b7280;
+  --border: rgba(15, 23, 42, 0.08);
+  --accent: #6366f1;
+  --accent-2: #8b5cf6;
+  --ring: rgba(99, 102, 241, 0.35);
+  --danger: #ef4444;
+  --ok: #22c55e;
+  --warn: #f59e0b;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-muted: var(--muted);
+  --color-border: var(--border);
+  --color-accent: var(--accent);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    --background: #07080b;
+    --foreground: #e6e8ef;
+    --card: #0f1218;
+    --muted: #9aa3b2;
+    --border: rgba(255, 255, 255, 0.08);
+    --accent: #818cf8;
+    --accent-2: #a78bfa;
+    --ring: rgba(129, 140, 248, 0.35);
   }
 }
 
+html,
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-sans), system-ui, -apple-system, "Segoe UI", Roboto,
+    sans-serif;
 }
+
+body {
+  background-image:
+    radial-gradient(1200px 500px at 10% -10%, rgba(99, 102, 241, 0.18), transparent 60%),
+    radial-gradient(900px 400px at 90% 10%, rgba(139, 92, 246, 0.14), transparent 60%);
+  background-attachment: fixed;
+}
+
+.glass {
+  background: color-mix(in oklab, var(--card) 85%, transparent);
+  backdrop-filter: saturate(140%) blur(10px);
+  -webkit-backdrop-filter: saturate(140%) blur(10px);
+  border: 1px solid var(--border);
+}
+
+.card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 1rem;
+  box-shadow: 0 10px 30px -20px rgba(2, 6, 23, 0.35);
+}
+
+.btn-primary {
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
+  color: white;
+  box-shadow: 0 8px 24px -8px var(--ring);
+  transition: transform 120ms ease, box-shadow 120ms ease, opacity 120ms ease;
+}
+.btn-primary:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 12px 30px -10px var(--ring);
+}
+.btn-primary:active { transform: translateY(0); }
+.btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.btn-danger {
+  background: linear-gradient(135deg, #ef4444, #f43f5e);
+  color: white;
+  box-shadow: 0 8px 24px -8px rgba(239, 68, 68, 0.45);
+  transition: transform 120ms ease, box-shadow 120ms ease;
+}
+.btn-danger:hover { transform: translateY(-1px); }
+
+.btn-ghost {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--foreground);
+  transition: background 120ms ease, border-color 120ms ease;
+}
+.btn-ghost:hover { background: color-mix(in oklab, var(--foreground) 6%, transparent); }
+
+.input {
+  background: color-mix(in oklab, var(--card) 80%, transparent);
+  border: 1px solid var(--border);
+  color: var(--foreground);
+  transition: border-color 120ms ease, box-shadow 120ms ease;
+  border-radius: 0.75rem;
+}
+.input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 4px var(--ring);
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.3rem 0.7rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  border: 1px solid var(--border);
+  background: color-mix(in oklab, var(--card) 70%, transparent);
+}
+
+.pulse-dot {
+  position: relative;
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  background: #22c55e;
+}
+.pulse-dot::after {
+  content: "";
+  position: absolute;
+  inset: -6px;
+  border-radius: 999px;
+  background: #22c55e;
+  opacity: 0.35;
+  animation: pulse 1.6s ease-out infinite;
+}
+.pulse-dot.red { background: #ef4444; }
+.pulse-dot.red::after { background: #ef4444; }
+@keyframes pulse {
+  0% { transform: scale(0.6); opacity: 0.5; }
+  100% { transform: scale(1.6); opacity: 0; }
+}
+
+.thin-scroll::-webkit-scrollbar { width: 8px; height: 8px; }
+.thin-scroll::-webkit-scrollbar-thumb { background: var(--border); border-radius: 999px; }
+
+.map-shell {
+  border-radius: 1rem;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  box-shadow: 0 20px 40px -24px rgba(2, 6, 23, 0.45);
+}
+.map-shell > div { border-radius: 1rem; }
+
+/* Google maps tweaks — hide default rounded bug when embedded */
+.map-shell .gm-style { font-family: inherit !important; }
