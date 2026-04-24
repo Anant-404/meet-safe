@@ -1,297 +1,190 @@
 "use client";
 
 import {
-  Autocomplete,
-  Circle,
-  GoogleMap,
-  Marker,
-  useJsApiLoader,
+  Autocomplete, Circle, GoogleMap, Marker, useJsApiLoader,
 } from "@react-google-maps/api";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 type LatLng = { lat: number; lng: number };
-
 type Props = {
   onLocationSelected: (lat: number, lng: number, address: string) => void;
   selectedLocation: LatLng | null;
+  radiusMeters: number;
+  onRadiusChange: (r: number) => void;
 };
 
 const LIBRARIES: ("places")[] = ["places"];
-
-const CONTAINER_STYLE = {
-  width: "100%",
-  height: "100%",
-};
-
+const CONTAINER_STYLE = { width: "100%", height: "100%" };
 const DEFAULT_CENTER: LatLng = { lat: 40.7128, lng: -74.006 };
+const SLIDER_MIN = 20;
+const SLIDER_MAX = 2000;
 
-const LIGHT_MAP_STYLES: google.maps.MapTypeStyle[] = [
+const LIGHT_STYLES: google.maps.MapTypeStyle[] = [
   { featureType: "poi.business", stylers: [{ visibility: "off" }] },
   { featureType: "transit", elementType: "labels.icon", stylers: [{ visibility: "off" }] },
+  { elementType: "geometry", stylers: [{ color: "#eef2ee" }] },
+  { featureType: "road", elementType: "geometry", stylers: [{ color: "#ffffff" }] },
+  { featureType: "road", elementType: "labels.text.fill", stylers: [{ color: "#7a9088" }] },
+  { featureType: "water", elementType: "geometry", stylers: [{ color: "#c8dfd4" }] },
+  { featureType: "landscape.natural", stylers: [{ color: "#dceee5" }] },
 ];
 
-const DARK_MAP_STYLES: google.maps.MapTypeStyle[] = [
-  { elementType: "geometry", stylers: [{ color: "#1f2430" }] },
-  { elementType: "labels.text.stroke", stylers: [{ color: "#0f1218" }] },
-  { elementType: "labels.text.fill", stylers: [{ color: "#a1a7b5" }] },
-  { featureType: "poi", stylers: [{ visibility: "simplified" }] },
+const DARK_STYLES: google.maps.MapTypeStyle[] = [
+  { elementType: "geometry", stylers: [{ color: "#0f1a13" }] },
+  { elementType: "labels.text.stroke", stylers: [{ color: "#080f0b" }] },
+  { elementType: "labels.text.fill", stylers: [{ color: "#5a7a68" }] },
   { featureType: "poi.business", stylers: [{ visibility: "off" }] },
-  { featureType: "road", elementType: "geometry", stylers: [{ color: "#2a3040" }] },
-  { featureType: "road", elementType: "labels.text.fill", stylers: [{ color: "#9aa3b2" }] },
-  { featureType: "water", elementType: "geometry", stylers: [{ color: "#0b1220" }] },
+  { featureType: "road", elementType: "geometry", stylers: [{ color: "#1a2e20" }] },
+  { featureType: "road", elementType: "labels.text.fill", stylers: [{ color: "#5a7a68" }] },
+  { featureType: "water", elementType: "geometry", stylers: [{ color: "#080f0b" }] },
   { featureType: "transit", stylers: [{ visibility: "off" }] },
 ];
 
-export function MapPicker({ onLocationSelected, selectedLocation }: Props) {
+function fmtRadius(m: number) {
+  return m >= 1000 ? `${(m / 1000).toFixed(1)} km` : `${m} m`;
+}
+
+export function MapPicker({ onLocationSelected, selectedLocation, radiusMeters, onRadiusChange }: Props) {
   const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_KEY ?? "";
-  const { isLoaded, loadError } = useJsApiLoader({
-    googleMapsApiKey: apiKey,
-    libraries: LIBRARIES,
-  });
+  const { isLoaded, loadError } = useJsApiLoader({ googleMapsApiKey: apiKey, libraries: LIBRARIES });
 
   const mapRef = useRef<google.maps.Map | null>(null);
-  const autocompleteRef = useRef<google.maps.places.Autocomplete | null>(null);
-  const [inputValue, setInputValue] = useState("");
+  const acRef = useRef<google.maps.places.Autocomplete | null>(null);
+  const [input, setInput] = useState("");
   const [isDark, setIsDark] = useState(false);
   const [locating, setLocating] = useState(false);
-  const [geoError, setGeoError] = useState<string | null>(null);
+  const [geoErr, setGeoErr] = useState<string | null>(null);
 
   useEffect(() => {
-    if (typeof window === "undefined" || !window.matchMedia) return;
     const mq = window.matchMedia("(prefers-color-scheme: dark)");
     setIsDark(mq.matches);
-    const handler = (e: MediaQueryListEvent) => setIsDark(e.matches);
-    mq.addEventListener("change", handler);
-    return () => mq.removeEventListener("change", handler);
+    const h = (e: MediaQueryListEvent) => setIsDark(e.matches);
+    mq.addEventListener("change", h);
+    return () => mq.removeEventListener("change", h);
   }, []);
 
-  const onMapLoad = useCallback((map: google.maps.Map) => {
-    mapRef.current = map;
-  }, []);
-
-  const onAutocompleteLoad = useCallback(
-    (ac: google.maps.places.Autocomplete) => {
-      autocompleteRef.current = ac;
-    },
-    []
-  );
+  const onMapLoad = useCallback((m: google.maps.Map) => { mapRef.current = m; }, []);
+  const onAcLoad = useCallback((ac: google.maps.places.Autocomplete) => { acRef.current = ac; }, []);
 
   const onPlaceChanged = useCallback(() => {
-    const ac = autocompleteRef.current;
-    if (!ac) return;
-    const place = ac.getPlace();
-    if (!place.geometry?.location) return;
+    const ac = acRef.current; if (!ac) return;
+    const place = ac.getPlace(); if (!place.geometry?.location) return;
     const lat = place.geometry.location.lat();
     const lng = place.geometry.location.lng();
-    const address = place.formatted_address || place.name || `${lat}, ${lng}`;
-    setInputValue(address);
-    onLocationSelected(lat, lng, address);
-    if (mapRef.current) {
-      mapRef.current.panTo({ lat, lng });
-      mapRef.current.setZoom(15);
-    }
+    const addr = place.formatted_address || place.name || `${lat}, ${lng}`;
+    setInput(addr); onLocationSelected(lat, lng, addr);
+    mapRef.current?.panTo({ lat, lng }); mapRef.current?.setZoom(15);
   }, [onLocationSelected]);
 
-  const onMapClick = useCallback(
-    (e: google.maps.MapMouseEvent) => {
-      if (!e.latLng) return;
-      const lat = e.latLng.lat();
-      const lng = e.latLng.lng();
-      const address = `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
-      setInputValue(address);
-      onLocationSelected(lat, lng, address);
-    },
-    [onLocationSelected]
-  );
+  const onMapClick = useCallback((e: google.maps.MapMouseEvent) => {
+    if (!e.latLng) return;
+    const lat = e.latLng.lat(); const lng = e.latLng.lng();
+    const addr = `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+    setInput(addr); onLocationSelected(lat, lng, addr);
+  }, [onLocationSelected]);
 
-  const onMarkerDragEnd = useCallback(
-    (e: google.maps.MapMouseEvent) => {
-      if (!e.latLng) return;
-      const lat = e.latLng.lat();
-      const lng = e.latLng.lng();
-      const address = `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
-      setInputValue(address);
-      onLocationSelected(lat, lng, address);
-    },
-    [onLocationSelected]
-  );
+  const onDragEnd = useCallback((e: google.maps.MapMouseEvent) => {
+    if (!e.latLng) return;
+    const lat = e.latLng.lat(); const lng = e.latLng.lng();
+    const addr = `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+    setInput(addr); onLocationSelected(lat, lng, addr);
+  }, [onLocationSelected]);
 
-  const useMyLocation = useCallback(() => {
-    if (!navigator.geolocation) {
-      setGeoError("Geolocation unavailable");
-      return;
-    }
-    setLocating(true);
-    setGeoError(null);
+  const myLocation = useCallback(() => {
+    if (!navigator.geolocation) { setGeoErr("Unavailable"); return; }
+    setLocating(true); setGeoErr(null);
     navigator.geolocation.getCurrentPosition(
       (p) => {
-        const lat = p.coords.latitude;
-        const lng = p.coords.longitude;
-        const address = `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
-        setInputValue(address);
-        onLocationSelected(lat, lng, address);
-        if (mapRef.current) {
-          mapRef.current.panTo({ lat, lng });
-          mapRef.current.setZoom(15);
-        }
+        const lat = p.coords.latitude; const lng = p.coords.longitude;
+        const addr = `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+        setInput(addr); onLocationSelected(lat, lng, addr);
+        mapRef.current?.panTo({ lat, lng }); mapRef.current?.setZoom(15);
         setLocating(false);
       },
-      (err) => {
-        setGeoError(err.message);
-        setLocating(false);
-      },
+      (err) => { setGeoErr(err.message); setLocating(false); },
       { enableHighAccuracy: true, timeout: 8000 }
     );
   }, [onLocationSelected]);
 
-  const mapOptions = useMemo<google.maps.MapOptions>(
-    () => ({
-      disableDefaultUI: false,
-      clickableIcons: false,
-      streetViewControl: false,
-      mapTypeControl: false,
-      fullscreenControl: false,
-      zoomControl: true,
-      styles: isDark ? DARK_MAP_STYLES : LIGHT_MAP_STYLES,
-      gestureHandling: "greedy",
-    }),
-    [isDark]
+  const mapOpts = useMemo<google.maps.MapOptions>(() => ({
+    disableDefaultUI: false, clickableIcons: false, streetViewControl: false,
+    mapTypeControl: false, fullscreenControl: false, zoomControl: true,
+    styles: isDark ? DARK_STYLES : LIGHT_STYLES, gestureHandling: "greedy",
+  }), [isDark]);
+
+  const circleOpts = useMemo<google.maps.CircleOptions>(() => ({
+    strokeColor: "#0ea472", strokeOpacity: 0.8, strokeWeight: 2,
+    fillColor: "#0ea472", fillOpacity: 0.08,
+    clickable: false, draggable: false, editable: false, visible: true,
+    radius: radiusMeters, zIndex: 1,
+  }), [radiusMeters]);
+
+  if (!apiKey) return <div className="rounded-lg border border-red-400/40 bg-red-400/10 p-3 text-sm text-red-400">Missing NEXT_PUBLIC_GOOGLE_MAPS_KEY</div>;
+  if (loadError) return <div className="rounded-lg border border-red-400/40 bg-red-400/10 p-3 text-sm text-red-400">Maps failed: {loadError.message}</div>;
+  if (!isLoaded) return (
+    <div className="map-shell flex h-[300px] w-full items-center justify-center text-sm" style={{ color: "var(--muted)" }}>
+      <span className="inline-flex items-center gap-2">
+        <span className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+        Loading map…
+      </span>
+    </div>
   );
-
-  const circleOptions = useMemo<google.maps.CircleOptions>(
-    () => ({
-      strokeColor: "#6366f1",
-      strokeOpacity: 0.9,
-      strokeWeight: 2,
-      fillColor: "#818cf8",
-      fillOpacity: 0.18,
-      clickable: false,
-      draggable: false,
-      editable: false,
-      visible: true,
-      radius: 1000,
-      zIndex: 1,
-    }),
-    []
-  );
-
-  if (!apiKey) {
-    return (
-      <div className="rounded-xl border border-red-500/40 bg-red-500/10 p-4 text-sm text-red-300">
-        Missing <code>NEXT_PUBLIC_GOOGLE_MAPS_KEY</code> env var.
-      </div>
-    );
-  }
-
-  if (loadError) {
-    return (
-      <div className="rounded-xl border border-red-500/40 bg-red-500/10 p-4 text-sm text-red-300">
-        Failed to load Google Maps: {loadError.message}
-      </div>
-    );
-  }
-
-  if (!isLoaded) {
-    return (
-      <div className="map-shell flex h-[360px] w-full items-center justify-center bg-black/5 text-sm text-[color:var(--muted)] dark:bg-white/5 sm:h-[420px]">
-        <span className="inline-flex items-center gap-2">
-          <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
-          Loading map…
-        </span>
-      </div>
-    );
-  }
-
-  const center = selectedLocation ?? DEFAULT_CENTER;
 
   return (
-    <div className="space-y-2">
-      <div className="map-shell relative h-[360px] w-full sm:h-[460px]">
-        <div className="pointer-events-none absolute inset-x-3 top-3 z-10 flex items-start gap-2">
-          <div className="glass pointer-events-auto flex flex-1 items-center gap-2 rounded-xl px-2.5 py-1.5 shadow-lg">
-            <svg
-              viewBox="0 0 24 24"
-              width="18"
-              height="18"
-              className="ml-1 text-[color:var(--muted)]"
-              fill="currentColor"
-              aria-hidden
-            >
+    <div className="space-y-2.5">
+      <div className="map-shell relative h-[300px] w-full sm:h-[380px]">
+        <div className="pointer-events-none absolute inset-x-3 top-3 z-10 flex gap-2">
+          <div className="glass pointer-events-auto flex flex-1 items-center gap-2 rounded-xl px-2.5 py-1.5 shadow-md">
+            <svg viewBox="0 0 24 24" width="15" height="15" className="ml-1 shrink-0" style={{ fill: "var(--muted)" }}>
               <path d="M10 2a8 8 0 1 1-5.3 14l-3.4 3.4-1.4-1.4L3.3 14.7A8 8 0 0 1 10 2zm0 2a6 6 0 1 0 .1 12A6 6 0 0 0 10 4z" />
             </svg>
-            <Autocomplete
-              onLoad={onAutocompleteLoad}
-              onPlaceChanged={onPlaceChanged}
-              options={{ fields: ["geometry", "formatted_address", "name"] }}
-              className="flex-1"
-            >
+            <Autocomplete onLoad={onAcLoad} onPlaceChanged={onPlaceChanged} options={{ fields: ["geometry", "formatted_address", "name"] }} className="flex-1">
               <input
-                type="text"
-                value={inputValue}
-                onChange={(e) => setInputValue(e.target.value)}
-                placeholder="Search for a place or address…"
-                className="w-full bg-transparent px-1 py-2 text-sm text-[color:var(--foreground)] placeholder:text-[color:var(--muted)] focus:outline-none"
+                type="text" value={input} onChange={(e) => setInput(e.target.value)}
+                placeholder="Search location…"
+                className="w-full bg-transparent px-1 py-1.5 text-sm focus:outline-none"
+                style={{ color: "var(--foreground)" }}
               />
             </Autocomplete>
           </div>
-          <button
-            type="button"
-            onClick={useMyLocation}
-            disabled={locating}
-            title="Use my location"
-            className="glass pointer-events-auto flex h-10 w-10 items-center justify-center rounded-xl text-[color:var(--foreground)] shadow-lg transition hover:bg-[color:var(--card)] disabled:opacity-60 sm:h-auto sm:w-auto sm:px-3 sm:py-2 sm:text-xs sm:font-medium"
+          <button type="button" onClick={myLocation} disabled={locating}
+            className="glass pointer-events-auto flex h-9 w-9 items-center justify-center rounded-xl shadow-md transition hover:bg-[color:var(--card)] disabled:opacity-50 sm:h-auto sm:w-auto sm:px-2.5 sm:py-1.5"
           >
-            {locating ? (
-              <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
-            ) : (
-              <>
-                <svg
-                  viewBox="0 0 24 24"
-                  width="16"
-                  height="16"
-                  fill="currentColor"
-                  aria-hidden
-                  className="sm:mr-1.5"
-                >
-                  <path d="M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8zm8.9 3A9 9 0 0 0 13 3.1V1h-2v2.1A9 9 0 0 0 3.1 11H1v2h2.1A9 9 0 0 0 11 20.9V23h2v-2.1A9 9 0 0 0 20.9 13H23v-2h-2.1zM12 19a7 7 0 1 1 0-14 7 7 0 0 1 0 14z" />
-                </svg>
-                <span className="hidden sm:inline">My location</span>
-              </>
-            )}
+            {locating
+              ? <span className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+              : <>
+                  <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor" className="sm:mr-1">
+                    <path d="M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8zm8.9 3A9 9 0 0 0 13 3.1V1h-2v2.1A9 9 0 0 0 3.1 11H1v2h2.1A9 9 0 0 0 11 20.9V23h2v-2.1A9 9 0 0 0 20.9 13H23v-2h-2.1zM12 19a7 7 0 1 1 0-14 7 7 0 0 1 0 14z" />
+                  </svg>
+                  <span className="hidden sm:inline text-xs font-medium">My location</span>
+                </>
+            }
           </button>
         </div>
-
         <div className="pointer-events-none absolute inset-x-3 bottom-3 z-10 flex justify-center">
-          <div className="chip pointer-events-auto">
-            {selectedLocation
-              ? "Drag the pin to fine-tune — blue circle = 1 km safe zone"
-              : "Tap the map, drag the pin, or search to pick the meeting spot"}
-          </div>
+          <span className="chip text-[10px]">
+            {selectedLocation ? `Safe zone: ${fmtRadius(radiusMeters)} radius` : "Tap map or search to pick meeting spot"}
+          </span>
         </div>
-
-        <GoogleMap
-          mapContainerStyle={CONTAINER_STYLE}
-          center={center}
-          zoom={selectedLocation ? 15 : 12}
-          onLoad={onMapLoad}
-          onClick={onMapClick}
-          options={mapOptions}
-        >
-          {selectedLocation && (
-            <>
-              <Marker
-                position={selectedLocation}
-                draggable
-                onDragEnd={onMarkerDragEnd}
-              />
-              <Circle center={selectedLocation} options={circleOptions} />
-            </>
-          )}
+        <GoogleMap mapContainerStyle={CONTAINER_STYLE} center={selectedLocation ?? DEFAULT_CENTER} zoom={selectedLocation ? 15 : 12} onLoad={onMapLoad} onClick={onMapClick} options={mapOpts}>
+          {selectedLocation && <>
+            <Marker position={selectedLocation} draggable onDragEnd={onDragEnd} />
+            <Circle center={selectedLocation} options={circleOpts} />
+          </>}
         </GoogleMap>
       </div>
-      {geoError && (
-        <p className="text-xs text-red-400">Location: {geoError}</p>
-      )}
+
+      <div className="card-inner px-3.5 py-3">
+        <div className="mb-1.5 flex items-center justify-between">
+          <span className="text-xs" style={{ color: "var(--muted)" }}>Safe zone radius</span>
+          <span className="text-sm font-semibold" style={{ fontFamily: "var(--font-display)", color: "var(--accent)" }}>{fmtRadius(radiusMeters)}</span>
+        </div>
+        <input type="range" className="slider" min={SLIDER_MIN} max={SLIDER_MAX} step={20} value={radiusMeters} onChange={(e) => onRadiusChange(Number(e.target.value))} />
+        <div className="mt-1 flex justify-between text-[10px]" style={{ color: "var(--muted)" }}>
+          <span>20 m</span><span>2 km</span>
+        </div>
+      </div>
+      {geoErr && <p className="text-xs text-red-400">Location: {geoErr}</p>}
     </div>
   );
 }
