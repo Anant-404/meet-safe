@@ -1,43 +1,48 @@
 import { TrackingPanel } from "@/components/TrackingPanel";
+import { ThemeToggle } from "@/components/ThemeToggle";
 
 export default function Home() {
   return (
     <div className="flex min-h-screen flex-1 flex-col">
-      <header className="sticky top-0 z-30 glass">
+      <header className="sticky top-0 z-30 glass border-b border-[color:var(--border)]">
         <div className="mx-auto flex w-full max-w-6xl items-center justify-between gap-4 px-4 py-3 sm:px-6">
           <div className="flex items-center gap-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-violet-500 text-white shadow-lg shadow-indigo-500/30">
-              <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden>
-                <path d="M12 2c-4.4 0-8 3.5-8 7.9 0 5.7 7.1 11.5 7.4 11.7.2.2.6.2.8 0 .3-.2 7.8-6 7.8-11.7C20 5.5 16.4 2 12 2zm0 10.8a2.9 2.9 0 1 1 0-5.8 2.9 2.9 0 0 1 0 5.8z" />
+            <div
+              className="flex h-8 w-8 items-center justify-center rounded-lg text-white"
+              style={{ background: "var(--accent)" }}
+            >
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+                <path d="M12 1L3 5v6c0 5.25 3.75 10.15 9 11.25C17.25 21.15 21 16.25 21 11V5l-9-4zm-1 13l-3-3 1.41-1.41L11 11.17l4.59-4.58L17 8l-6 6z"/>
               </svg>
             </div>
             <div>
-              <div className="text-sm font-semibold leading-tight">Safety Check-In</div>
-              <div className="text-xs text-[color:var(--muted)]">
-                Meeting safety companion
+              <div style={{ fontFamily: "var(--font-display)", fontWeight: 600 }} className="text-sm leading-tight">
+                SafetyNet
+              </div>
+              <div className="text-[10px] leading-tight" style={{ color: "var(--muted)" }}>
+                Personal safety companion
               </div>
             </div>
           </div>
-          <a
-            href="#how"
-            className="chip hidden sm:inline-flex"
-            aria-label="How it works"
-          >
-            <span className="pulse-dot" />
-            Live location • Email fallback
-          </a>
+          <div className="flex items-center gap-2 sm:gap-4">
+            <div className="hidden sm:flex items-center gap-2">
+              <span className="chip">
+                <span className="pulse-dot" />
+                Location private
+              </span>
+              <span className="chip">Email fallback</span>
+            </div>
+            <ThemeToggle />
+          </div>
         </div>
       </header>
 
-      <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-6 sm:px-6">
+      <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-5 sm:px-6">
         <TrackingPanel />
       </main>
 
-      <footer
-        id="how"
-        className="mx-auto w-full max-w-6xl px-4 pb-8 text-center text-xs text-[color:var(--muted)] sm:px-6"
-      >
-        Location stays on your device. Emails only fire if you don&apos;t arrive.
+      <footer className="mx-auto w-full max-w-6xl px-4 pb-5 text-center text-[10px] sm:px-6" style={{ color: "var(--muted)" }}>
+        Your location never leaves your device · Emails only fire if you don&apos;t arrive
       </footer>
     </div>
   );
